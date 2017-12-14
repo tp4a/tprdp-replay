@@ -154,42 +154,13 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		goto out;
 	}
 
-	//memset(wfc->record_filename_base, 0, 1024);
-	//char szFileName[1024] = { 0 };
-	//strcpy(szFileName, argv[1]);
-//	strcpy(wfc->downloader.filename_base, argv[1]);
-//	strcpy(wfc->downloader.host_base, argv[2]);
-
+	// wfreerdp.exe "http://127.0.0.1:7190" 256 "tp_1491560510_ca67fceb75a78c9d" "000000256-admin-administrator-218.244.140.14-20171209-020047"
 	//if (strlen(wfc->downloader.filename_base) > 7 && 0 == memcmp(wfc->downloader.filename_base, "http://", 7))
-	if (argc == 3)
+	if (argc == 5)
 	{
 		strcpy(wfc->downloader.url_base, argv[1]);
-		strcpy(wfc->downloader.host_base, argv[2]);
-
-		// for test:
-		//strcpy(wfc->downloader.filename_base, "http://127.0.0.1:7190/log/replay/rdp/195");
-
-		//strcpy(wfc->downloader.url_base, wfc->downloader.filename_base);
-
-		char* szIP = NULL;
-		char* szID = NULL;
-		char szTmp[1024] = { 0 };
-		strcpy(szTmp, wfc->downloader.url_base);
-		szID = strrchr(szTmp, '/');
-		szID[0] = '\0';
-		szID++;
-
-		szIP = strchr(szTmp, '/');
-		szIP++;
-		szIP = strchr(szIP, '/');
-		szIP++;
-		char* szEnd = strchr(szIP, '/');
-		szEnd[0] = '\0';
-		szEnd = strchr(szIP, ':');
-		if (NULL != szEnd)
-		{
-			szEnd[0] = '-';
-		}
+		strcpy(wfc->downloader.record_id, argv[2]);
+		strcpy(wfc->downloader.session_id, argv[3]);
 
 		GetModuleFileNameA(NULL, wfc->downloader.filename_base, 1023);
 		char* szFNtmp = strrchr(wfc->downloader.filename_base, '\\');
@@ -200,9 +171,7 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			CreateDirectoryA(wfc->downloader.filename_base, NULL);
 		}
 		strcat(wfc->downloader.filename_base, "\\");
-		strcat(wfc->downloader.filename_base, szIP);
-		strcat(wfc->downloader.filename_base, "-");
-		strcat(wfc->downloader.filename_base, szID);
+		strcat(wfc->downloader.filename_base, argv[4]);
 		if (!PathFileExistsA(wfc->downloader.filename_base))
 		{
 			CreateDirectoryA(wfc->downloader.filename_base, NULL);
@@ -244,41 +213,18 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		goto out;
 	WaitForSingleObject(wfc->record_hdr_exist_event, INFINITE);
 
-	// 	wfc->record_file = fopen(wfc->download_filename, "rb");
-	// 	TS_RECORD_HEADER hdr;
-	// 
-	// 	ts_u8* buf = NULL;
-	// 	ts_u32 buf_size = 0;
-	// 	ts_u32 pkg_size = 0;
-	// 
-	// 	int size_read = 0;
-	// 	size_read = fread(&hdr, 1, sizeof(TS_RECORD_HEADER), wfc->record_file);
-	// 	if (size_read != sizeof(TS_RECORD_HEADER))
-	// 	{
-	// 		MessageBox(NULL, _T("无法读取 Teleport RDP 录像文件！"), _T("错误"), MB_OK);
-	// 		fclose(wfc->record_file);
-	// 		goto out;
-	// 	}
-	// 
-	// 	if (0 != memcmp(TS_RDP_RECORD_MAGIC, &(hdr.magic), 4))
-	// 	{
-	// 		MessageBox(NULL, _T("文件不是 Teleport RDP 录像文件格式！"), _T("错误"), MB_OK);
-	// 		fclose(wfc->record_file);
-	// 		goto out;
-	// 	}
 
 		//freerdp_play_thread_start(wfc);
-	if (0 == wfc->record_hdr.file_count || 0 == wfc->record_hdr.file_size
-		|| 0 == wfc->record_hdr.width || 0 == wfc->record_hdr.height)
+	if(0 == wfc->record_hdr.basic.width || 0 == wfc->record_hdr.basic.height)
 	{
-		MessageBox(NULL, _T("文件不是 Teleport RDP 录像文件格式！"), _T("错误"), MB_OK | MB_ICONERROR);
+		//MessageBox(NULL, _T("文件不是 Teleport RDP 录像文件格式！"), _T("错误"), MB_OK | MB_ICONERROR);
 		goto out;
 	}
 
-	wfc->settings->DesktopWidth = wfc->record_hdr.width;
-	wfc->settings->DesktopHeight = wfc->record_hdr.height;
+	wfc->settings->DesktopWidth = wfc->record_hdr.basic.width;
+	wfc->settings->DesktopHeight = wfc->record_hdr.basic.height;
 
-	if (wfc->record_hdr.rdp_security == 0)	// 0 = RDP, 1 = SSL
+	if (wfc->record_hdr.basic.rdp_security == 0)	// 0 = RDP, 1 = SSL
 		wfc->settings->UseRdpSecurityLayer = TRUE;
 // }}
 
@@ -304,11 +250,6 @@ out:
 // Apex {{
 	if (NULL != wfc->record_hdr_exist_event)
 		CloseHandle(wfc->record_hdr_exist_event);
-
-	// 	if (NULL != wfc && NULL != wfc->record_file)
-	// 	{
-	// 		fclose(wfc->record_file);
-	// 	}
 // }}
 
 	freerdp_client_context_free(context);

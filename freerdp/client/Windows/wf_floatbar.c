@@ -228,15 +228,15 @@ static void* _player_thread(void* arg)
 
 	wfContext* wfc = floatbar->wfc;
 
-	floatbar->time_total = wfc->record_hdr.time_ms;
+	floatbar->time_total = wfc->record_hdr.info.time_ms;
 
 	BOOL play_end = FALSE;
-	int size_read = 0;
 
-	int file_count = 0;
 	FILE* f = NULL;
-	char file_id[24] = { 0 };
 	char szFilename[1024] = { 0 };
+	int file_size = 0;
+	strcpy(szFilename, wfc->downloader.filename_base);
+	strcat(szFilename, "\\tp-rdp.dat");
 
 	for (;;)
 	{
@@ -255,12 +255,42 @@ static void* _player_thread(void* arg)
 			f = NULL;
 		}
 
-		file_count = 0;
-
 		floatbar->time_played = 0;
 
 		_ms_to_str(floatbar, TRUE, floatbar->time_total,  floatbar->sz_time_total);
 		_ms_to_str(floatbar, FALSE, 0, floatbar->sz_time_current);
+
+
+		if (NULL == f)
+		{
+			// wait until file exists (downloaded)
+			if (!wfc->downloader.data_file_downloaded)
+			{
+				wf_show_downloader(wfc);
+				do {
+					Sleep(500);
+					if (floatbar->need_exit)
+						break;
+				} while (!wfc->downloader.data_file_downloaded);
+
+				wf_hide_downloader(wfc);
+
+				if (floatbar->need_exit)
+					break;
+			}
+
+			f = fopen(szFilename, "rb");
+			fseek(f, 0, SEEK_END);
+			file_size = ftell(f);
+			if (file_size < sizeof(TS_RECORD_PKG))
+			{
+				// Invalide RDP-record data file.
+				floatbar->need_exit = TRUE;
+				break;
+			}
+
+		}
+		fseek(f, 0, SEEK_SET);
 
 		ex_u32 pkg_played = 0;
 
@@ -291,7 +321,7 @@ static void* _player_thread(void* arg)
 
 			_ms_to_str(floatbar, false, floatbar->time_played * floatbar->speed, floatbar->sz_time_current);
 
-			// 计算进度条百分百
+			// 计算进度条百分比
 			int p = floatbar->time_played * floatbar->speed * 100 / floatbar->time_total;
 			if (p != floatbar->percent)
 			{
@@ -311,6 +341,12 @@ static void* _player_thread(void* arg)
 					_play_package(wfc, &pkg, buf_data, pkg.size);
 					buf_played = TRUE;
 					pkg_played++;
+
+					if (pkg_played >= wfc->record_hdr.info.packages)
+					{
+						play_end = TRUE;
+						break;
+					}
 				}
 				else
 				{
@@ -320,74 +356,70 @@ static void* _player_thread(void* arg)
 
 			for (;;)
 			{
-				if (NULL == f)
-				{
-					sprintf(file_id, "%03d", file_count);
-					char szFilename[1024] = { 0 };
-					strcpy(szFilename, wfc->downloader.filename_base);
-					strcat(szFilename, "\\tp-rdp.");
-					strcat(szFilename, file_id);
-
-					// wait until file exists (downloaded)
-					if (!PathFileExistsA(szFilename))
-					{
-						wf_show_downloader(wfc);
-						do {
-							Sleep(500);
-							if (floatbar->need_exit)
-								break;
-						} while (!PathFileExistsA(szFilename));
-
-						wf_hide_downloader(wfc);
-					}
-
-					if (floatbar->need_exit)
-						break;
-
-					f = fopen(szFilename, "rb");
-					fseek(f, 0, SEEK_END);
-					int _file_size = ftell(f);
-					if (_file_size < 4)
-					{
-						// Invalide RDP-record data file.
-						floatbar->need_exit = TRUE;
-						break;
-					}
-
-					fseek(f, 0, SEEK_SET);
-					ex_u32 file_size = 0;
-					size_read = fread(&file_size, 1, sizeof(ex_u32), f);
-					if (size_read != sizeof(ex_u32))
-					{
-						floatbar->need_exit = TRUE;
-						break;
-					}
-
-					if (file_size != _file_size - sizeof(ex_u32))
-					{
-						floatbar->need_exit = TRUE;
-						break;
-					}
-				}
+// 				if (NULL == f)
+// 				{
+// //					sprintf(file_id, "%03d", file_count);
+// 					char szFilename[1024] = { 0 };
+// 					strcpy(szFilename, wfc->downloader.filename_base);
+// 					strcat(szFilename, "\\tp-rdp.dat");
+// //					strcat(szFilename, file_id);
+// 
+// 					// wait until file exists (downloaded)
+// 					if (!PathFileExistsA(szFilename))
+// 					{
+// 						wf_show_downloader(wfc);
+// 						do {
+// 							Sleep(500);
+// 							if (floatbar->need_exit)
+// 								break;
+// 						}// while (!PathFileExistsA(szFilename));
+// 						while (wfc->downloader.downloaded_size < wfc->downloader.file_size);
+// 
+// 						wf_hide_downloader(wfc);
+// 					}
+// 
+// 					if (floatbar->need_exit)
+// 						break;
+// 
+// 					f = fopen(szFilename, "rb");
+// 					fseek(f, 0, SEEK_END);
+// 					int _file_size = ftell(f);
+// 					if (_file_size < 4)
+// 					{
+// 						// Invalide RDP-record data file.
+// 						floatbar->need_exit = TRUE;
+// 						break;
+// 					}
+// 
+// 					fseek(f, 0, SEEK_SET);
+// 					ex_u32 file_size = 0;
+// 					size_read = fread(&file_size, 1, sizeof(ex_u32), f);
+// 					if (size_read != sizeof(ex_u32))
+// 					{
+// 						floatbar->need_exit = TRUE;
+// 						break;
+// 					}
+// 
+// 					if (file_size != _file_size - sizeof(ex_u32))
+// 					{
+// 						floatbar->need_exit = TRUE;
+// 						break;
+// 					}
+// 				}
 
 				if (floatbar->need_exit)
 					break;
 
-				size_read = fread(&pkg, 1, sizeof(TS_RECORD_PKG), f);
+				int size_read = fread(&pkg, 1, sizeof(TS_RECORD_PKG), f);
 				if (size_read != sizeof(TS_RECORD_PKG))
 				{
 					fclose(f);
 					f = NULL;
 
-					file_count++;
-					if (file_count < wfc->record_hdr.file_count)
-						continue;
-
 					play_end = TRUE;
 
 					// 计算进度条百分百
 					int p = floatbar->time_played * floatbar->speed * 100 / floatbar->time_total;
-					//int p = pkg_played * 100 / hdr.packages;
 					if (p != floatbar->percent)
 					{
 						//WLog_ERR("percent", "%d%%, time:%d/%d, pkg:%d/%d", p, floatbar->time_played * floatbar->speed, hdr.time_ms, pkg_played, hdr.packages);
@@ -402,7 +434,7 @@ static void* _player_thread(void* arg)
 				{
 					if (NULL != buf_data)
 						free(buf_data);
-					buf_data = (ex_u8*)calloc(pkg.size, 1);
+					buf_data = (ex_u8*)calloc(1, pkg.size);
 					buf_size = pkg.size;
 					if (NULL == buf_data)
 						break;
@@ -421,6 +453,12 @@ static void* _player_thread(void* arg)
 					_play_package(wfc, &pkg, buf_data, pkg.size);
 					buf_played = TRUE;
 					pkg_played++;
+
+					if (pkg_played >= wfc->record_hdr.info.packages)
+					{
+						play_end = TRUE;
+						break;
+					}
 				}
 				else
 				{

@@ -857,7 +857,7 @@ BOOL resetRdp(freerdp* instance)
 {
 	rdp_reset(instance->context->rdp);
 
-	instance->context->rdp->state = 3;
+	instance->context->rdp->state = CONNECTION_STATE_MCS_ATTACH_USER;
 	instance->update->initialState = FALSE;
 
 	return TRUE;

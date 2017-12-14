@@ -82,29 +82,50 @@ typedef unsigned __int64 ex_u64;
 
 #pragma pack(push,1)
 
-// 录像文件头
-typedef struct TS_RECORD_HEADER
+
+// 录像文件头(随着录像数据写入，会改变的部分)
+typedef struct TS_RECORD_HEADER_INFO
 {
 	ex_u32 magic;		// "TPPR" 标志 TelePort Protocol Record
-	ex_u16 ver;			// 录像文件版本，目前为2
-	ex_u16 protocol;	// 协议：1=RDP, 2=SSH, 3=Telnet
-	ex_u64 timestamp;	// 本次录像的起始时间（UTC时间戳）
+	ex_u16 ver;			// 录像文件版本，目前为3
 	ex_u32 packages;	// 总包数
 	ex_u32 time_ms;		// 总耗时（毫秒）
+						//ex_u32 file_size;	// 数据文件大小
+}TS_RECORD_HEADER_INFO;
+#define ts_record_header_info_size sizeof(TS_RECORD_HEADER_INFO)
+
+// 录像文件头(固定不变部分)
+typedef struct TS_RECORD_HEADER_BASIC
+{
+	ex_u16 protocol_type;		// 协议：1=RDP, 2=SSH, 3=Telnet
+	ex_u16 protocol_sub_type;	// 子协议：100=RDP-DESKTOP, 200=SSH-SHELL, 201=SSH-SFTP, 300=Telnet
+	ex_u64 timestamp;	// 本次录像的起始时间（UTC时间戳）
 	ex_u16 width;		// 初始屏幕尺寸：宽
 	ex_u16 height;		// 初始屏幕尺寸：高
-	ex_u16 file_count;	// 数据文件总数
-	ex_u32 file_size;	// 所有数据文件的总大小（不包括每个数据文件的头，即4字节的每文件大小）
-	char account[16];	// teleport账号
-	char username[16];	// 远程主机用户名
-	char ip[18];
-	ex_u16 port;
+	char user_username[64];	// teleport账号
+	char acc_username[64];	// 远程主机用户名
 
-	// RDP专有
+	char host_ip[40];	// 远程主机IP
+	char conn_ip[40];	// 远程主机IP
+	ex_u16 conn_port;	// 远程主机端口
+
+	char client_ip[40];		// 客户端IP
+
+							// RDP专有
 	ex_u8 rdp_security;	// 0 = RDP, 1 = TLS
 
-	ex_u8 reserve[128 - 4 - 2 - 2 - 8 - 4 - 4 - 2 - 2 - 2 - 4 - 16 - 16 - 18 - 2 - 1];	// 保留
+	ex_u8 _reserve[512 - 2 - 2 - 8 - 2 - 2 - 64 - 64 - 40 - 40 - 2 - 40 - 1 - ts_record_header_info_size];
+}TS_RECORD_HEADER_BASIC;
+#define ts_record_header_basic_size sizeof(TS_RECORD_HEADER_BASIC)
+
+typedef struct TS_RECORD_HEADER
+{
+	TS_RECORD_HEADER_INFO info;
+	TS_RECORD_HEADER_BASIC basic;
 }TS_RECORD_HEADER;
+
+// header部分（header-info + header-basic） = 512B
+#define ts_record_header_size sizeof(TS_RECORD_HEADER)
 
 // 一个数据包的头
 typedef struct TS_RECORD_PKG
@@ -112,7 +133,7 @@ typedef struct TS_RECORD_PKG
 	ex_u8 type;			// 包的数据类型
 	ex_u32 size;		// 这个包的总大小（不含包头）
 	ex_u32 time_ms;		// 这个包距起始时间的时间差（毫秒，意味着一个连接不能持续超过49天）
-	ex_u8 reserve[3];	// 保留
+	ex_u8 _reserve[3];	// 保留
 }TS_RECORD_PKG;
 
 typedef struct TS_RECORD_RDP_MOUSE_POS
@@ -143,8 +164,14 @@ typedef struct TS_DOWNLOADER
 	BOOL exit_flag;
 	char filename_base[1024];
 	char url_base[1024];
-	char host_base[1024];
+	char record_id[32];
+	char session_id[64];
 	char current_download_filename[1024];
+	int file_size;
+	FILE* file_handle;
+
+	BOOL data_file_downloaded;
+
 }TS_DOWNLOADER;
 // }}
 

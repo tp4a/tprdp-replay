@@ -504,10 +504,10 @@ BOOL wf_post_connect(freerdp* instance)
 
 // Apex {{
 	char szWinTitle[256] = { 0 };
-	if (wfc->record_hdr.port == 3389)
-		_snprintf(szWinTitle, 255, "[%s] %s@%s [Teleport-RDP录像回放]", wfc->record_hdr.account, wfc->record_hdr.username, wfc->record_hdr.ip);
+	if (wfc->record_hdr.basic.conn_port == 3389)
+		_snprintf(szWinTitle, 255, "[%s] %s@%s [Teleport-RDP录像回放]", wfc->record_hdr.basic.acc_username, wfc->record_hdr.basic.user_username, wfc->record_hdr.basic.conn_ip);
 	else
-		_snprintf(szWinTitle, 255, "[%s] %s@%s:%d [Teleport-RDP录像回放]", wfc->record_hdr.account, wfc->record_hdr.username, wfc->record_hdr.ip, wfc->record_hdr.port);
+		_snprintf(szWinTitle, 255, "[%s] %s@%s:%d [Teleport-RDP录像回放]", wfc->record_hdr.basic.acc_username, wfc->record_hdr.basic.user_username, wfc->record_hdr.basic.conn_ip, wfc->record_hdr.basic.conn_port);
 	SetWindowTextA(wfc->hwnd, szWinTitle);
 // }}
 
@@ -870,7 +870,7 @@ BOOL wfreerdp_client_new(freerdp* instance, rdpContext* context)
 	wfc->settings = instance->settings;
 
 // Apex {{
-	wfc->downloader.hwnd_dlg = NULL;
+	ZeroMemory(&wfc->downloader, sizeof(TS_DOWNLOADER));
 // }}
 
 	return TRUE;
@@ -1004,6 +1004,10 @@ void wf_reset(wfContext* wfc)
 	wf_sw_desktop_resize(wfc);
 }
 
+//==============================================================
+//
+//==============================================================
+
 #define WMU_DOWNLOAD_PERCENT	(WM_USER+1)
 
 static void _download_ev_handler(struct mg_connection* nc, int ev, void* ev_data)
@@ -1021,24 +1025,93 @@ static void _download_ev_handler(struct mg_connection* nc, int ev, void* ev_data
 		break;
 	case MG_EV_HTTP_REPLY:
 	{
-		FILE* f = fopen(wfc->downloader.current_download_filename, "wb");
-		size_t wlen = fwrite(hm->body.p, 1, hm->body.len, f);
-		fflush(f);
-		fclose(f);
-		if (wlen != hm->body.len)
-		{
+		if (hm->resp_code != 200) {
+			if (NULL != wfc->downloader.file_handle) {
+				fclose(wfc->downloader.file_handle);
+				wfc->downloader.file_handle = NULL;
+			}
+
 			DeleteFileA(wfc->downloader.current_download_filename);
+
 			wfc->downloader.result = FALSE;
+			wfc->downloader.exit_flag = TRUE;
+			break;
 		}
 
-		wfc->downloader.downloaded_size += (wlen - sizeof(ex_u32));
+		if (NULL == wfc->downloader.file_handle) {
+			wfc->downloader.file_handle = fopen(wfc->downloader.current_download_filename, "wb");
+			if (NULL == wfc->downloader.file_handle) {
+				wfc->downloader.result = FALSE;
+				wfc->downloader.exit_flag = TRUE;
+				break;
+			}
+		}
 
-		wfc->downloader.exit_flag = TRUE;
+		//FILE* f = fopen(wfc->downloader.current_download_filename, "wb");
+		size_t wlen = fwrite(hm->body.p, 1, hm->body.len, wfc->downloader.file_handle);
+		//fflush(wfc->downloader.file_handle);
+		//fclose(f);
+		if (wlen != hm->body.len)
+		{
+			fflush(wfc->downloader.file_handle);
+			fclose(wfc->downloader.file_handle);
+			wfc->downloader.file_handle = NULL;
+			DeleteFileA(wfc->downloader.current_download_filename);
+			wfc->downloader.result = FALSE;
+			wfc->downloader.exit_flag = TRUE;
+			break;
+		}
+
+		wfc->downloader.downloaded_size += wlen;  // (wlen - sizeof(ex_u32));
+
+		if (wfc->downloader.downloaded_size >= wfc->downloader.file_size) {
+			fflush(wfc->downloader.file_handle);
+			fclose(wfc->downloader.file_handle);
+			wfc->downloader.file_handle = NULL;
+			wfc->downloader.result = TRUE;
+			wfc->downloader.exit_flag = TRUE;
+		}
+		// wfc->downloader.exit_flag = TRUE;
 		break;
 	}
 	}
 }
 
+static void _ev_handler_get_file_size(struct mg_connection* nc, int ev, void* ev_data)
+{
+	wfContext* wfc = (wfContext*)nc->mgr->user_data;
+
+	struct http_message* hm = (struct http_message*)ev_data;
+	switch (ev)
+	{
+	case MG_EV_CONNECT:
+		if (*(int *)ev_data != 0) {
+			wfc->downloader.result = FALSE;
+			wfc->downloader.exit_flag = TRUE;
+		}
+		break;
+	case MG_EV_HTTP_REPLY:
+	{
+		if (hm->resp_code != 200) {
+			wfc->downloader.result = FALSE;
+			wfc->downloader.exit_flag = TRUE;
+			break;
+		}
+
+		char sz_tmp[32] = { 0 };
+		if (hm->body.len >= 32) {
+			wfc->downloader.result = FALSE;
+			wfc->downloader.exit_flag = TRUE;
+		}
+
+		memcpy(sz_tmp, hm->body.p, hm->body.len);
+		wfc->downloader.file_size = atol(sz_tmp);
+		wfc->downloader.result = TRUE;
+		wfc->downloader.exit_flag = TRUE;
+		break;
+	}
+	}
+}
 
 static ex_u8 TS_RDP_RECORD_MAGIC[4] = { 'T', 'P', 'P', 'R' };
 
@@ -1053,59 +1126,154 @@ DWORD WINAPI _download_thread(LPVOID lpParam)
 	Sleep(100);
 	//Sleep(1000*20);
 
-	wfc->downloader.downloaded_size = 0;
+	//wfc->downloader.downloaded_size = 0;
 
-	char szFilename[1024] = { 0 };
-	strcpy(szFilename, wfc->downloader.filename_base);
-	strcat(szFilename, "\\tp-rdp.tpr");
-	char szUrl[1024] = { 0 };
-	strcpy(szUrl, wfc->downloader.url_base);
-	strcat(szUrl, "/tp-rdp.tpr");
-	OutputDebugStringA(szUrl);
-	OutputDebugStringA("\n");
+	char file_name_hdr[1024] = { 0 };
+	char file_name_dat[1024] = { 0 };
+	strcpy(file_name_hdr, wfc->downloader.filename_base);
+	strcat(file_name_hdr, "\\tp-rdp.tpr");
+	strcpy(file_name_dat, wfc->downloader.filename_base);
+	strcat(file_name_dat, "\\tp-rdp.dat");
+
+	FILE* f = NULL;
+	int file_size_hdr = 0;
+	int file_size_dat = 0;
+
+	bool need_download_hdr = false;
+	bool need_download_dat = false;
+
+	char szUrl[2048] = { 0 };
+
 	struct mg_mgr mgr;
 	mg_mgr_init(&mgr, wfc);
+
 	char szHeader[1024] = { 0 };
-	sprintf(szHeader, "%s", wfc->downloader.host_base);
-	//sprintf(szHeader, "Host:www.baidu.com");
-	if (!PathFileExistsA(szFilename))
-	{
-		strcpy(wfc->downloader.current_download_filename, szFilename);
-		mg_connect_http(&mgr, _download_ev_handler, szUrl, szHeader, NULL);
+	//sprintf(szHeader, "%s", wfc->downloader.url_base);
+	sprintf(szHeader, "Cookie: _sid=%s\r\n", wfc->downloader.session_id);
+	//sprintf(szHeader, "%s", "127.0.0.1:7190");
+
+	// 0. check header file.
+	if (PathFileExistsA(file_name_hdr)) {
+		f = fopen(file_name_hdr, "rb");
+		fseek(f, 0, SEEK_END);
+		file_size_hdr = ftell(f);
+		fclose(f);
+		f = NULL;
+
+		if (file_size_hdr != ts_record_header_size) {
+			DeleteFileA(file_name_hdr);
+			DeleteFileA(file_name_dat);
+			need_download_dat = true;
+		}
+	}
+	else {
+		need_download_hdr = true;
+	}
+
+	if (!PathFileExistsA(file_name_dat)) {
+		need_download_dat = true;
+	}
+
+	// get file size, url like: http://127.0.0.1:7190/audit/get-file?act=size&type=rdp&rid=yyyyy&f=file-name
+	//   'type' should be `rdp` or `ssh`, but we use rdp only.
+	// read file, url like: http://127.0.0.1:7190/audit/get-file?act=read&type=rdp&rid=yyyyy&f=file-name&offset=1234&length=1024
+	//   if 'offset' does not present, means offset=0
+	//   if 'length' does not present, means read all content from offset.
+
+	// 1. get file size of tp-rdp.tpr.
+	if (need_download_hdr) {
+		strcpy(wfc->downloader.current_download_filename, file_name_hdr);
+		wfc->downloader.file_size = 0;
+		wfc->downloader.downloaded_size = 0;
+
+		strcpy(szUrl, wfc->downloader.url_base);
+		strcat(szUrl, "/audit/get-file?act=size&type=rdp");
+		// strcat(szUrl, "&sid=");
+		//	strcat(szUrl, wfc->downloader.session_id);
+		strcat(szUrl, "&rid=");
+		strcat(szUrl, wfc->downloader.record_id);
+		strcat(szUrl, "&f=");
+		strcat(szUrl, "tp-rdp.tpr");
+		OutputDebugStringA(szUrl);
+		OutputDebugStringA("\n");
+
+		mg_connect_http(&mgr, _ev_handler_get_file_size, szUrl, szHeader, NULL);
+		//mg_connect_http(&mgr, _ev_handler_get_file_size, szUrl, NULL, NULL);
+		wfc->downloader.result = FALSE;
+		wfc->downloader.exit_flag = FALSE;
+		while (!wfc->downloader.exit_flag) {
+			mg_mgr_poll(&mgr, 500);
+		}
+		//mg_mgr_free(&mgr);
+
+		if (!wfc->downloader.result) {
+			MessageBox(NULL, _T("获取文件大小失败！"), _T("错误"), MB_OK);
+			PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
+			//return 0;
+			goto mg_cleanup;
+		}
+
+		if (wfc->downloader.file_size != ts_record_header_size) {
+			MessageBox(NULL, _T("文件不是 Teleport RDP 录像文件格式！"), _T("错误"), MB_OK);
+			wfc->downloader.result = FALSE;
+			PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
+			//		return 0;
+			goto mg_cleanup;
+		}
+
+		file_size_hdr = wfc->downloader.file_size;
+
+		// 2. download tp-rdp.tpr.
+		wfc->downloader.file_size = 0;
+		wfc->downloader.downloaded_size = 0;
+		strcpy(szUrl, wfc->downloader.url_base);
+		strcat(szUrl, "/audit/get-file?act=read&type=rdp");
+		// strcat(szUrl, "&sid=");
+		//	strcat(szUrl, wfc->downloader.session_id);
+		strcat(szUrl, "&rid=");
+		strcat(szUrl, wfc->downloader.record_id);
+		strcat(szUrl, "&f=");
+		strcat(szUrl, "tp-rdp.tpr");
+
+		//mg_mgr_init(&mgr, wfc);
+		mg_connect_http(&mgr, _ev_handler_download, szUrl, szHeader, NULL);
 		wfc->downloader.exit_flag = FALSE;
 		while (!wfc->downloader.exit_flag)
 		{
 			mg_mgr_poll(&mgr, 500);
 		}
-	}
-	if (!wfc->downloader.result)
-	{
-		MessageBox(NULL, _T("下载失败！"), _T("错误"), MB_OK);
-		PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
-		return 0;
+		//mg_mgr_free(&mgr);
+		if (!wfc->downloader.result)
+		{
+			MessageBox(NULL, _T("下载失败！"), _T("错误"), MB_OK);
+			PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
+			return 0;
+		}
 	}
 
 	// 可以读取基本信息了
-	FILE* f = fopen(szFilename, "rb");
-	//TS_RECORD_HEADER hdr;
+	f = fopen(file_name_hdr, "rb");
 
 	ex_u8* buf = NULL;
 	ex_u32 buf_size = 0;
 	ex_u32 pkg_size = 0;
 
 	int size_read = 0;
-	size_read = fread(&wfc->record_hdr, 1, sizeof(TS_RECORD_HEADER), f);
+	size_read = fread(&wfc->record_hdr, 1, file_size_hdr, f);
 	fclose(f);
-	if (size_read != sizeof(TS_RECORD_HEADER))
+	f = NULL;
+	if (size_read != file_size_hdr)
 	{
-		MessageBox(NULL, _T("无法读取 Teleport RDP 录像文件！"), _T("错误"), MB_OK);
+		MessageBox(NULL, _T("读取文件时发生错误！"), _T("错误"), MB_OK);
 		wfc->downloader.result = FALSE;
 		DeleteFileA(wfc->downloader.current_download_filename);
 		PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
 		return 0;
 	}
 
-	if (0 != memcmp(TS_RDP_RECORD_MAGIC, &(wfc->record_hdr.magic), 4))
+	if (0 != memcmp(TS_RDP_RECORD_MAGIC, &(wfc->record_hdr.info.magic), 4)
+		|| 0 == wfc->record_hdr.basic.width
+		|| 0 == wfc->record_hdr.basic.height)
 	{
 		MessageBox(NULL, _T("文件不是 Teleport RDP 录像文件格式！"), _T("错误"), MB_OK);
 		wfc->downloader.result = FALSE;
@@ -1117,6 +1285,68 @@ DWORD WINAPI _download_thread(LPVOID lpParam)
 	// 有了基本信息，可以通知主线程继续了
 	SetEvent(wfc->record_hdr_exist_event);
 
+	// 3. get file size of tp-rdp.dat.
+	if (need_download_dat) {
+		strcpy(wfc->downloader.current_download_filename, file_name_dat);
+		wfc->downloader.file_size = 0;
+		wfc->downloader.downloaded_size = 0;
+
+		strcpy(szUrl, wfc->downloader.url_base);
+		strcat(szUrl, "/audit/get-file?act=size&type=rdp");
+		strcat(szUrl, "&rid=");
+		strcat(szUrl, wfc->downloader.record_id);
+		strcat(szUrl, "&f=tp-rdp.dat");
+
+		wfc->downloader.result = FALSE;
+		wfc->downloader.exit_flag = FALSE;
+		//mg_mgr_init(&mgr, wfc);
+		mg_connect_http(&mgr, _ev_handler_get_file_size, szUrl, szHeader, NULL);
+		while (!wfc->downloader.exit_flag) {
+			mg_mgr_poll(&mgr, 500);
+		}
+		//mg_mgr_free(&mgr);
+
+		if (!wfc->downloader.result) {
+			MessageBox(NULL, _T("获取文件大小失败！"), _T("错误"), MB_OK);
+			PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
+			//return 0;
+			goto mg_cleanup;
+		}
+
+		int dat_file_size = wfc->downloader.file_size;
+
+		// 4. download tp-rdp.dat.
+		wfc->downloader.file_size = 0;
+		wfc->downloader.downloaded_size = 0;
+		strcpy(szUrl, wfc->downloader.url_base);
+		strcat(szUrl, "/audit/get-file?act=read&type=rdp");
+		strcat(szUrl, "&rid=");
+		strcat(szUrl, wfc->downloader.record_id);
+		strcat(szUrl, "&f=tp-rdp.dat");
+
+		//mg_mgr_init(&mgr, wfc);
+		wfc->downloader.result = FALSE;
+		wfc->downloader.exit_flag = FALSE;
+		mg_connect_http(&mgr, _ev_handler_download, szUrl, szHeader, NULL);
+		while (!wfc->downloader.exit_flag)
+		{
+			mg_mgr_poll(&mgr, 500);
+		}
+		//mg_mgr_free(&mgr);
+
+		if (!wfc->downloader.result)
+		{
+			MessageBox(NULL, _T("下载失败！"), _T("错误"), MB_OK);
+			PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
+			goto mg_cleanup;
+		}
+	}
+
+	// 5. all data ready.
+	wfc->downloader.data_file_downloaded = TRUE;
+
+
+#if 0
 	// 继续下载数据文件
 	int i = 0;
 	for (i = 0; i < wfc->record_hdr.file_count; ++i)
@@ -1134,7 +1364,7 @@ DWORD WINAPI _download_thread(LPVOID lpParam)
 		if (!PathFileExistsA(szFilename))
 		{
 			strcpy(wfc->downloader.current_download_filename, szFilename);
-			mg_connect_http(&mgr, _download_ev_handler, szUrl, szHeader, NULL);
+			mg_connect_http(&mgr, _ev_handler_download, szUrl, szHeader, NULL);
 			wfc->downloader.exit_flag = FALSE;
 			while (!wfc->downloader.exit_flag)
 			{
@@ -1156,8 +1386,9 @@ DWORD WINAPI _download_thread(LPVOID lpParam)
 
 		PostMessage(wfc->downloader.hwnd_dlg, WMU_DOWNLOAD_PERCENT, (WPARAM)NULL, (LPARAM)NULL);
 	}
+#endif
 
-
+mg_cleanup:
 	mg_mgr_free(&mgr);
 
 	PostMessage(wfc->downloader.hwnd_dlg, WM_CLOSE, 0, 0);
@@ -1221,7 +1452,8 @@ INT_PTR CALLBACK _download_box_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 	case WMU_DOWNLOAD_PERCENT:
 	{
 		wchar_t szMsg[256] = { 0 };
-		int p = (int)(((float)wfc->downloader.downloaded_size / (float)wfc->record_hdr.file_size) * 100 + 0.5);
+		//int p = (int)(((float)wfc->downloader.downloaded_size / (float)wfc->record_hdr.file_size) * 100 + 0.5);
+		int p = (int)(((float)wfc->downloader.downloaded_size / (float)wfc->downloader.file_size) * 100 + 0.5);
 		wsprintf(szMsg, _T("正在缓存 RDP 录像数据，请稍候...  [%d%%]"), p);
 		SetWindowText(wfc->downloader.hwnd_info, szMsg);
 	}
