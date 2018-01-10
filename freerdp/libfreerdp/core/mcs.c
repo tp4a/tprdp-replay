@@ -1179,7 +1179,7 @@ BOOL mcs_client_begin(rdpMcs* mcs)
 
 	rdp_client_transition_to_state(context->rdp, CONNECTION_STATE_MCS_CONNECT);
 
-	rdp_client_transition_to_state(context->rdp, CONNECTION_STATE_MCS_ATTACH_USER);
+// 	rdp_client_transition_to_state(context->rdp, CONNECTION_STATE_MCS_ATTACH_USER);
 
 	return TRUE;
 }

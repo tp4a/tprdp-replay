@@ -249,8 +249,8 @@ BOOL WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 		{
 			message->TextString = (LPSTR) message->FormatString;
 			status = WLog_Write(log, message);
-			OutputDebugStringA(message->TextString);
-			OutputDebugStringA("\n");
+// 			OutputDebugStringA(message->TextString);
+// 			OutputDebugStringA("\n");
 		}
 		else
 		{
@@ -259,8 +259,8 @@ BOOL WLog_PrintMessageVA(wLog* log, wLogMessage* message, va_list args)
 				return FALSE;
 			message->TextString = formattedLogMessage;
 			status = WLog_Write(log, message);
-			OutputDebugStringA(message->TextString);
-			OutputDebugStringA("\n");
+// 			OutputDebugStringA(message->TextString);
+// 			OutputDebugStringA("\n");
 		}
 	}
 	else if (message->Type == WLOG_MESSAGE_DATA)

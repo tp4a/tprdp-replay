@@ -117,6 +117,18 @@ BOOL update_read_bitmap_data(rdpUpdate* update, wStream* s, BITMAP_DATA* bitmapD
 		Stream_Seek(s, bitmapData->bitmapLength);
 	}
 
+	WLog_Print(update->log, WLOG_DEBUG, "bitmap: (%d,%d)-(%d,%d), (%dx%d), bits:%d, flags:%04X, size:%d", 
+		bitmapData->destLeft,
+		bitmapData->destTop,
+		bitmapData->destRight,
+		bitmapData->destBottom,
+		bitmapData->width,
+		bitmapData->height,
+		bitmapData->bitsPerPixel,
+		bitmapData->flags,
+		bitmapData->bitmapLength
+	);
+
 	return TRUE;
 }
 
@@ -177,6 +189,7 @@ BOOL update_read_bitmap_update(rdpUpdate* update, wStream* s, BITMAP_UPDATE* bit
 	Stream_Read_UINT16(s, bitmapUpdate->number); /* numberRectangles (2 bytes) */
 
 	WLog_Print(update->log, WLOG_DEBUG, "BitmapUpdate: %d", bitmapUpdate->number);
+	//WLog_ERR(TAG, "BitmapUpdate: %d", bitmapUpdate->number);
 
 	if (bitmapUpdate->number > bitmapUpdate->count)
 	{

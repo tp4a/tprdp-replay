@@ -322,28 +322,62 @@ rdpSettings* freerdp_settings_new(DWORD flags)
 	if (!settings->OrderSupport)
 			goto out_fail;
 
+// 	settings->OrderSupport[NEG_DSTBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_PATBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_SCRBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_OPAQUE_RECT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_DRAWNINEGRID_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MULTIDSTBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MULTIPATBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MULTISCRBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MULTIOPAQUERECT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MULTI_DRAWNINEGRID_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_LINETO_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_POLYLINE_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MEMBLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_MEM3BLT_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_SAVEBITMAP_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_GLYPH_INDEX_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_FAST_INDEX_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_FAST_GLYPH_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_POLYGON_SC_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_POLYGON_CB_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_ELLIPSE_SC_INDEX] = TRUE;
+// 	settings->OrderSupport[NEG_ELLIPSE_CB_INDEX] = TRUE;
+
 	settings->OrderSupport[NEG_DSTBLT_INDEX] = TRUE;
 	settings->OrderSupport[NEG_PATBLT_INDEX] = TRUE;
 	settings->OrderSupport[NEG_SCRBLT_INDEX] = TRUE;
-	settings->OrderSupport[NEG_OPAQUE_RECT_INDEX] = TRUE;
+	settings->OrderSupport[NEG_MEMBLT_INDEX] = TRUE;
+	settings->OrderSupport[NEG_MEM3BLT_INDEX] = TRUE;
+	settings->OrderSupport[NEG_ATEXTOUT_INDEX] = FALSE;
+	settings->OrderSupport[NEG_AEXTTEXTOUT_INDEX] = FALSE;
 	settings->OrderSupport[NEG_DRAWNINEGRID_INDEX] = TRUE;
+	settings->OrderSupport[NEG_LINETO_INDEX] = TRUE;
+	settings->OrderSupport[NEG_MULTI_DRAWNINEGRID_INDEX] = TRUE;
+	settings->OrderSupport[NEG_OPAQUE_RECT_INDEX] = FALSE;
+	settings->OrderSupport[NEG_SAVEBITMAP_INDEX] = TRUE;
+	settings->OrderSupport[NEG_WTEXTOUT_INDEX] = FALSE;
+	settings->OrderSupport[NEG_MEMBLT_V2_INDEX] = FALSE;
+	settings->OrderSupport[NEG_MEM3BLT_V2_INDEX] = FALSE;
 	settings->OrderSupport[NEG_MULTIDSTBLT_INDEX] = TRUE;
 	settings->OrderSupport[NEG_MULTIPATBLT_INDEX] = TRUE;
 	settings->OrderSupport[NEG_MULTISCRBLT_INDEX] = TRUE;
 	settings->OrderSupport[NEG_MULTIOPAQUERECT_INDEX] = TRUE;
-	settings->OrderSupport[NEG_MULTI_DRAWNINEGRID_INDEX] = TRUE;
-	settings->OrderSupport[NEG_LINETO_INDEX] = TRUE;
-	settings->OrderSupport[NEG_POLYLINE_INDEX] = TRUE;
-	settings->OrderSupport[NEG_MEMBLT_INDEX] = TRUE;
-	settings->OrderSupport[NEG_MEM3BLT_INDEX] = TRUE;
-	settings->OrderSupport[NEG_SAVEBITMAP_INDEX] = TRUE;
-	settings->OrderSupport[NEG_GLYPH_INDEX_INDEX] = TRUE;
 	settings->OrderSupport[NEG_FAST_INDEX_INDEX] = TRUE;
-	settings->OrderSupport[NEG_FAST_GLYPH_INDEX] = TRUE;
 	settings->OrderSupport[NEG_POLYGON_SC_INDEX] = TRUE;
 	settings->OrderSupport[NEG_POLYGON_CB_INDEX] = TRUE;
+	settings->OrderSupport[NEG_POLYLINE_INDEX] = TRUE;
+	settings->OrderSupport[NEG_UNUSED23_INDEX] = FALSE;
+	settings->OrderSupport[NEG_FAST_GLYPH_INDEX] = TRUE;
 	settings->OrderSupport[NEG_ELLIPSE_SC_INDEX] = TRUE;
 	settings->OrderSupport[NEG_ELLIPSE_CB_INDEX] = TRUE;
+	settings->OrderSupport[NEG_GLYPH_INDEX_INDEX] = TRUE;
+	settings->OrderSupport[NEG_GLYPH_WEXTTEXTOUT_INDEX] = FALSE;
+	settings->OrderSupport[NEG_GLYPH_WLONGTEXTOUT_INDEX] = FALSE;
+	settings->OrderSupport[NEG_GLYPH_WLONGEXTTEXTOUT_INDEX] = FALSE;
+	settings->OrderSupport[NEG_UNUSED31_INDEX] = FALSE;
+
 
 	settings->ClientProductId = calloc(1, 32);
 	if (!settings->ClientProductId)

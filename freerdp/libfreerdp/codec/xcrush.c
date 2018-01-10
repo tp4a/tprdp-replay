@@ -1050,7 +1050,7 @@ XCRUSH_CONTEXT* xcrush_context_new(BOOL Compressor)
 		xcrush->mppc = mppc_context_new(1, Compressor);
 
 		xcrush->HistoryOffset = 0;
-		xcrush->HistoryBufferSize = 2000000;
+		xcrush->HistoryBufferSize = 4000000;
 
 		xcrush_context_reset(xcrush, FALSE);
 	}

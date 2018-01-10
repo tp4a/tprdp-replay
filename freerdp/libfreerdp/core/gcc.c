@@ -1481,6 +1481,7 @@ BOOL gcc_read_server_network_data(wStream* s, rdpMcs* mcs)
 	Stream_Read_UINT16(s, channelCount); /* channelCount */
 
 	parsedChannelCount = channelCount;
+	mcs->channelCount = channelCount;
 
 	if (channelCount != mcs->channelCount)
 	{

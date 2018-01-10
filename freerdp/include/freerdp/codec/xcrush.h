@@ -76,7 +76,7 @@ struct _XCRUSH_CONTEXT
 	BYTE* HistoryPtr;
 	UINT32 HistoryOffset;
 	UINT32 HistoryBufferSize;
-	BYTE HistoryBuffer[2000000];
+	BYTE HistoryBuffer[4000000];
 	BYTE BlockBuffer[16384];
 	UINT32 CompressionFlags;
 

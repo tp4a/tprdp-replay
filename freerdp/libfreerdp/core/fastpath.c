@@ -222,6 +222,10 @@ static BOOL fastpath_recv_update_common(rdpFastPath* fastpath, wStream* s)
 
 	Stream_Read_UINT16(s, updateType); /* updateType (2 bytes) */
 
+	if (updateType == 0) {
+		int a = 1;
+	}
+
 	switch (updateType)
 	{
 		case UPDATE_TYPE_BITMAP:
