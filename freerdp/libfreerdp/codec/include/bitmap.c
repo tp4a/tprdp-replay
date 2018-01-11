@@ -562,6 +562,8 @@ void RLEDECOMPRESS(BYTE* pbSrcBuffer, UINT32 cbSrcBuffer, BYTE* pbDestBuffer,
 				DESTWRITEPIXEL(pbDest, BLACK_PIXEL);
 				DESTNEXTPIXEL(pbDest);
 				break;
+			default:
+				break;
 		}
 	}
 }

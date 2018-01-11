@@ -134,8 +134,50 @@ BOOL freerdp_channel_process(freerdp* instance, wStream* s, UINT16 channelId)
 	Stream_Read_UINT32(s, flags);
 	chunkLength = Stream_GetRemainingLength(s);
 
-	IFCALL(instance->ReceiveChannelData, instance,
-			channelId, Stream_Pointer(s), chunkLength, flags, length);
+
+	rdpRdp* rdp = instance->context->rdp;
+
+	if ((flags & 0x00200000) && ((flags & 0x000F0000) >> 16) == 0x03) {
+//	if (compressedType & PACKET_COMPRESSED)
+//	{
+		UINT32 DstSize = 0;
+		BYTE* pDstData = NULL;
+		UINT32 SrcSize = chunkLength;
+
+// 		if (Stream_GetRemainingLength(s) < (size_t)SrcSize)
+// 		{
+// 			//WLog_ERR(TAG, "bulk_decompress: not enough bytes for compressedLength %d", compressedLength);
+// 			return -1;
+// 		}
+
+		wStream* cs;
+
+		if (bulk_decompress(rdp->bulk, Stream_Pointer(s), SrcSize, &pDstData, &DstSize, 0x23))
+		{
+// 			if (!(cs = StreamPool_Take(rdp->transport->ReceivePool, DstSize)))
+// 			{
+// 				WLog_ERR(TAG, "Coudn't take stream from pool");
+// 				return -1;
+// 			}
+// 
+// 			Stream_SetPosition(cs, 0);
+// 			Stream_Write(cs, pDstData, DstSize);
+// 			Stream_SealLength(cs);
+// 			Stream_SetPosition(cs, 0);
+		}
+		else
+		{
+			WLog_ERR(TAG, "bulk_decompress() failed");
+			//return -1;
+		}
+
+		Stream_Seek(s, SrcSize);
+	}
+
+
+
+// 	IFCALL(instance->ReceiveChannelData, instance,
+// 			channelId, Stream_Pointer(s), chunkLength, flags, length);
 
 	return TRUE;
 }

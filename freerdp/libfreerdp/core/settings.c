@@ -428,7 +428,9 @@ rdpSettings* freerdp_settings_new(DWORD flags)
 	settings->RefreshRect = TRUE;
 	settings->SuppressOutput = TRUE;
 
-	settings->GlyphSupportLevel = GLYPH_SUPPORT_FULL;
+//	settings->GlyphSupportLevel = GLYPH_SUPPORT_FULL;
+	settings->GlyphSupportLevel = GLYPH_SUPPORT_ENCODE;
+
 	settings->GlyphCache = malloc(sizeof(GLYPH_CACHE_DEFINITION) * 10);
 	if(!settings->GlyphCache)
 			goto out_fail;
